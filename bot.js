@@ -1,10 +1,11 @@
+const { Configuration, OpenAIApi } = require("openai");
 const Bot = require("node-telegram-bot-api");
-const axios = require("axios");
-
-let bot;
-let currentTranslation;
 const token = process.env.TOKEN;
-const chatGPTFakeAcc = "https://chatgpt-api.shn.hk/v1/";
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(configuration);
+let bot;
 
 if (process.env.NODE_ENV === "production") {
   bot = new Bot(token);
@@ -16,49 +17,71 @@ if (process.env.NODE_ENV === "production") {
 console.log("Bot server started in the " + process.env.NODE_ENV + " mode");
 
 bot.on("polling_error", (error) => {
-  console.log(error); // => 'EFATAL'
+  console.log(error);
 });
 
 function sendMessage(msg, text) {
   bot.sendMessage(msg.chat.id, text);
 }
 
+function getRandomWorkText() {
+  let workImitationArray = [
+    "Перевожу...",
+    "Абажжи, ща всё будет...",
+    "Ждите, ваш перевод обрабатывается...",
+    "Опять переводить...",
+    "Рад служить, кожаный мешок, твой перевод в пути...",
+  ];
+
+  const randomElement = Math.floor(Math.random() * workImitationArray.length);
+
+  return workImitationArray[randomElement];
+}
+
 async function getTranslation(msg) {
-  axios
-    .post(chatGPTFakeAcc, {
+  try {
+    sendMessage(msg, getRandomWorkText());
+    const completion = await openai.createChatCompletion({
       model: "gpt-3.5-turbo",
+      temperature: 0.2,
       messages: [
         {
           role: "user",
-          content: `Давай переведем несколько фраз с вьетнамского языка на русский. Вот нужный текст: ${msg.text}`,
+          content: `Необходимо перевести несколько фраз с вьетнамского на русский язык. Они могут быть написаны как на вьетнамском языке, так и латиницей, используя схожие символы. Я прошу тебя не добавлять лишнюю информацию или примеры употребления. Мне нужен только перевод. Переведи: ${msg.text}`,
         },
       ],
-    })
-    .then(function (response) {
-      currentTranslation = response.data.choices[0].message.content;
-      sendMessage(msg, currentTranslation);
-    })
-    .catch(function (error) {
-      return error;
     });
+    sendMessage(
+      msg,
+      `[ПЕРЕВОД]: ${completion.data.choices[0].message.content}`
+    );
+  } catch (error) {
+    if (error.response) {
+      sendMessage(
+        msg,
+        `Что-то пошло не так. Вот что именно: ${error.response.data}`
+      );
+    } else {
+      sendMessage(
+        msg,
+        `Что-то сильно сломалось. Вот что именно: ${error.message}. Перешли это сообщение создателю этого бота: t.me/ivan_tolstov`
+      );
+    }
+  }
 }
 
 bot.on("text", async (msg) => {
-  const name = msg.from.first_name;
+  const name = msg.from.first_name ?? "Бледнолицый заграничник";
 
-  // HELP command
   if (msg.text.includes("/help")) {
-    //TODO: add common description;
     bot.sendMessage(
       msg.chat.id,
-      `Hello ${name}! This is a list of all possible commands: 
-        
-          /getkdr - Get your kill damage ratio and total average accuracy.
-          /getbest - Get best weapon in each category, depends on kill.
-          /last - get stats of your last match result. 
-          /stattrak - get all kill stats.
-          /reset - Drop off all search data.
-        `
+      `Привет ${name}! 
+      Я дружелюбный робот Нгуен, который поможет тебе, мой друг прочитать все, что присылают тебе в смс или где угодно, на твоем любимом русском языке. 
+      
+      > Просто пришли мне текст на вьетнамском языке, неважно написан он траслитерацией или чем-то еще. 
+
+      > Пока я умею переводить только с вьетнамского на русский. Но может быть смогу эволюционировать.`
     );
     return;
   } else {
