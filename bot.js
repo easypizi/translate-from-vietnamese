@@ -73,7 +73,7 @@ async function getTranslation(msg) {
 bot.on("text", async (msg) => {
   const name = msg.from.first_name ?? "Бледнолицый заграничник";
 
-  if (msg.text.includes("/")) {
+  if (msg.text.includes("/get_info")) {
     bot.sendMessage(
       msg.chat.id,
       `Привет ${name}! 
